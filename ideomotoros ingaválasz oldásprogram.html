@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ingás Blokkoldó Asszisztens Rendszer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #fce7f3 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .header { text-align: center; }
+        .header h1 {
+            font-size: 2rem;
+            color: #9333ea;
+            margin-bottom: 8px;
+        }
+        .header p { color: #6b7280; font-size: 0.875rem; }
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 12px;
+            background: #e5e7eb;
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(to right, #9333ea, #ec4899);
+            transition: width 0.5s ease;
+        }
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+            gap: 4px;
+            margin-top: 16px;
+        }
+        .step-icon {
+            text-align: center;
+            font-size: 1.25rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .step-icon.active { color: #9333ea; font-weight: bold; transform: scale(1.2); }
+        .step-icon.completed { color: #10b981; }
+        .step-icon.pending { color: #9ca3af; cursor: not-allowed; }
+        .content-card h2 {
+            font-size: 1.5rem;
+            color: #1f2937;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .info-box {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        .info-box.blue { background: #eff6ff; border-left: 4px solid #3b82f6; color: #1e40af; }
+        .info-box.purple { background: #faf5ff; border-left: 4px solid #a855f7; color: #6b21a8; }
+        .info-box.yellow { background: #fefce8; border: 1px solid #fde047; color: #854d0e; }
+        .info-box.green { background: #f0fdf4; border: 1px solid #86efac; }
+        .btn {
+            width: 100%;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-purple { background: #9333ea; color: white; }
+        .btn-purple:hover { background: #7e22ce; }
+        .btn-secondary { background: #d1d5db; color: #374151; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 900px;
+            width: 100%;
+            text-align: center;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .diagram-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .diagram-button {
+            background: #faf5ff;
+            border: 2px solid #d8b4fe;
+            color: #6b21a8;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .diagram-svg {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            margin: 20px auto;
+            display: block;
+        }
+        .diagram-sector {
+            cursor: pointer;
+            transition: all 0.2s;
+            stroke-width: 2;
+        }
+        .diagram-sector:hover, .diagram-sector:active {
+            opacity: 1;
+            filter: brightness(0.9);
+            stroke-width: 3;
+        }
+        .diagram-text {
+            pointer-events: none;
+            font-weight: bold;
+            fill: #1f2937;
+            text-shadow: 0px 0px 4px rgba(255,255,255,0.9), 0px 0px 8px rgba(255,255,255,0.7);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card header">
+            <h1>🎯 Ingás Blokkoldó Asszisztens</h1>
+            <p>Fókusz – Feltárás – Oldás – Integráció</p>
+        </div>
+
+        <div class="card">
+            <div class="progress-info">
+                <span id="stepInfo">Betöltés...</span>
+                <span id="percentInfo">0%</span>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+            </div>
+            <div class="steps-grid" id="stepsGrid">Töltés...</div>
+        </div>
+
+        <div class="card content-card" id="contentCard">
+            <p>Inicializálás...</p>
+        </div>
+
+        <div class="card" id="navigationCard" style="display: none;">
+            <button class="btn btn-secondary" onclick="prevStep()">← Vissza</button>
+        </div>
+    </div>
+
+    <div class="modal" id="diagramModal">
+        <div class="modal-content">
+            <h3 id="diagramTitle">Diagram</h3>
+            <div id="diagramContent"></div>
+            <button class="btn btn-secondary" style="margin-top: 16px;" onclick="closeDiagram()">Bezárás</button>
+        </div>
+    </div>
+
+    <script>
+// Globális változók
+let currentStep = 0;
+let completedSteps = [];
+let measurements = { initial: null, final: null };
+
+const steps = [
+    { id: 0, name: 'Ráhangolódás', icon: '🎯' },
+    { id: 1, name: 'Engedélyezés', icon: '✋', diagram: 'igenNem' },
+    { id: 2, name: 'Kezdeti mérés', icon: '📊', diagram: 'szazalek' },
+    { id: 3, name: 'Életterület', icon: '🌍', diagram: 'eletterulet' },
+    { id: 4, name: 'Érzelmi Gyökér', icon: '🌱', diagram: 'erzelmGyoker' },
+    { id: 5, name: 'Negatív Érzelem', icon: '💭', diagram: 'erzelem' },
+    { id: 6, name: 'Trauma', icon: '🔍', diagram: 'trauma' },
+    { id: 7, name: 'Lelki Sérülés', icon: '💔', diagram: 'lelkiSerules' },
+    { id: 8, name: 'Kapcsolati Gyökér', icon: '👥', diagram: 'kapcsolat' },
+    { id: 9, name: 'Blokk Eredete', icon: '⏳', diagram: 'eredet' },
+    { id: 10, name: 'Hiedelmek', icon: '🧠', diagram: 'hiedelem' },
+    { id: 11, name: 'Testi Érintettség', icon: '🫀', diagram: 'test' },
+    { id: 12, name: 'Csakra', icon: '🌈', diagram: 'csakra' },
+    { id: 13, name: 'Blokk Jellege', icon: '🔷', diagram: 'blokkJelleg' },
+    { id: 14, name: 'Védekezés', icon: '🛡️', diagram: 'vedekezes' },
+    { id: 15, name: 'Életszerep', icon: '🎭', diagram: 'szerepek' },
+    { id: 16, name: 'Szabotázs', icon: '🚫', diagram: 'szabotazs' },
+    { id: 17, name: 'Másodl. Haszon', icon: '🔐', diagram: 'haszon' },
+    { id: 18, name: 'Fogadalmak', icon: '🕊️', diagram: 'fogadalom' },
+    { id: 19, name: 'Mikroszkóp', icon: '🔬', diagram: 'mikroszkop' },
+    { id: 20, name: 'Készültség', icon: '⚡', diagram: 'igenNem' },
+    { id: 21, name: 'Oldás', icon: '✨' },
+    { id: 22, name: 'Pozitív Érzelem', icon: '😊', diagram: 'pozitivErzelem' },
+    { id: 23, name: 'Új Hit', icon: '💫', diagram: 'ujHit' },
+    { id: 24, name: 'Színek', icon: '🎨', diagram: 'szinek' },
+    { id: 25, name: 'Kristályok', icon: '💎', diagram: 'kristaly' },
+    { id: 26, name: 'Záró mérés', icon: '📈', diagram: 'szazalek' },
+    { id: 27, name: 'Oldó Szövegek', icon: '📖' },
+    { id: 28, name: 'Lezárás', icon: '🙏', diagram: 'igenNem' }
+];
+
+const diagrams = {
+    igenNem: { 
+        title: 'Igen - Nem - Nem most', 
+        options: ['IGEN', 'NEM', 'NEM MOST'],
+        colors: ['#bbf7d0', '#fecaca', '#fde68a']
+    },
+    szazalek: { 
+        title: 'Százalékos mérés', 
+        options: ['0%','10%','20%','30%','40%','50%','60%','70%','80%','90%','100%'],
+        colors: ['#fecaca','#fed7aa','#fde68a','#fef3c7','#d9f99d','#bbf7d0','#a7f3d0','#99f6e4','#a5f3fc','#bfdbfe','#c7d2fe']
+    },
+    eletterulet: { 
+        title: 'Életterületek', 
+        options: ['Munka/Karrier', 'Pénzügyek', 'Szerelem', 'Család', 'Egészség', 'Barátságok', 'Spiritualitás', 'Otthon', 'Szabadidő', 'Kreativitás'],
+        colors: ['#fecaca','#fed7aa','#fde68a','#d9f99d','#bbf7d0','#99f6e4','#bfdbfe','#c7d2fe','#ddd6fe','#e9d5ff']
+    },
+    erzelmGyoker: {
+        title: 'Érzelmi Gyökér',
+        options: ['Félelem/Szorongás', 'Harag/Düh', 'Szomorúság/Gyász', 'Öröm (elfojtott)', 'Szeretet (hiánya)', 'Bizalom (hiánya)', 'Bűntudat', 'Szégyen', 'Megvetés', 'Undor', 'Meglepetés (trauma)', 'Vágy/Hiány', 'Érzelmi zsibbadás', 'Fájdalom', 'Rejtett vágy'],
+        colors: ['#fca5a5', '#fecaca', '#bfdbfe', '#fde68a', '#fbcfe8', '#d1d5db', '#fed7aa', '#fcd34d', '#ddd6fe', '#99f6e4', '#fef3c7', '#f9a8d4', '#e5e7eb', '#fca5a5', '#f5d0fe']
+    },
+    erzelem: { 
+        title: 'Negatív Érzelmek', 
+        options: ['Harag/Düh', 'Szomorúság/Bánat', 'Félelem/Aggodalom', 'Bűntudat/Szégyen', 'Frusztráció', 'Irigység', 'Elhagyatottság', 'Reménytelenség'],
+        colors: ['#fecaca','#fca5a5','#fcd5d5','#fed7aa','#fecaca','#fca5a5','#fecdd3','#fca5a5']
+    },
+    trauma: {
+        title: 'Trauma Mélyítés',
+        options: ['Gyerekkori trauma', 'Bántalmazás', 'Elhanyagolás', 'Szexuális trauma', 'Érzelmi manipuláció', 'Családi konfliktus', 'Válás', 'Haláleset', 'Veszteség', 'Baleset', 'Betegség', 'Bullying', 'Elárulás', 'Ismétlődő kudarc', 'Öröklött trauma'],
+        colors: ['#fca5a5','#fcd5d5','#fecaca','#fecdd3','#fca5a5','#fed7aa','#fde68a','#fecaca','#fca5a5','#fcd5d5','#fed7aa','#fecaca','#fca5a5','#fcd5d5','#fecdd3']
+    },
+    lelkiSerules: {
+        title: 'Lelki Sérülések',
+        options: ['Elutasítás', 'Elhagyás', 'Megalázás', 'Árulás', 'Igazságtalanság', 'Nem látszás', 'Nem hallgatás', 'Érzelmi elhanyagolás', 'Fizikai elhanyagolás', 'Túlvédés', 'Invázió', 'Infantilizálás', 'Parentifikáció', 'Bűnbakképzés', 'Kirekesztés', 'Érzelmi zsarolás', 'Gaslighting', 'Kritika/Lenézés', 'Összehasonlítás', 'Feltételes szeretet'],
+        colors: ['#fca5a5', '#fcd34d', '#fdba74', '#d8b4fe', '#bfdbfe', '#a5f3fc', '#99f6e4', '#bbf7d0', '#fde68a', '#fecaca', '#ddd6fe', '#e9d5ff', '#fbcfe8', '#fecdd3', '#fed7aa', '#fef3c7', '#ccfbf1', '#c7d2fe', '#ddd6fe', '#fbcfe8']
+    },
+    kapcsolat: {
+        title: 'Kapcsolati Gyökér',
+        options: ['Anya', 'Apa', 'Testvér', 'Gyerek', 'Partner', 'Házastárs', 'Volt partner', 'Barát', 'Kolléga', 'Főnök', 'Tanár', 'Mentor', 'Nagyszülő', 'Rokon'],
+        colors: ['#fbcfe8','#bfdbfe','#bbf7d0','#fde68a','#fecaca','#fca5a5','#fcd5d5','#a7f3d0','#c7d2fe','#e9d5ff','#ddd6fe','#d8b4fe','#fed7aa','#fcd34d']
+    },
+    eredet: {
+        title: 'Blokk Eredete',
+        options: ['0-3 év', '3-7 év', '7-14 év', '14-21 év', '21-35 év', '35-50 év', '50+ év', 'Méhen belül', 'Születés', 'Korai gyerek', 'Iskolás kor', 'Pubertás', 'Fiatal felnőtt', 'Múlt élet', 'Generációs'],
+        colors: ['#fecaca','#fed7aa','#fde68a','#d9f99d','#bbf7d0','#a7f3d0','#99f6e4','#fca5a5','#fcd5d5','#fecaca','#fed7aa','#fde68a','#d9f99d','#ddd6fe','#e9d5ff']
+    },
+    hiedelem: { 
+        title: 'Korlátozó Hiedelmek', 
+        options: ['Nem vagyok elég jó', 'Nem érdemlem meg', 'Nem vagyok szerethető', 'Gyenge vagyok', 'Mindig kudarcot vallok', 'Veszélyes a siker', 'Nem lehetek boldog', 'Nem vagyok tehetséges', 'Sosem változhatok'],
+        colors: ['#d1d5db','#e5e7eb','#d1d5db','#e5e7eb','#d1d5db','#e5e7eb','#d1d5db','#e5e7eb','#d1d5db']
+    },
+    test: { 
+        title: 'Testtájékok', 
+        options: ['Fej/Agy', 'Torok/Nyak', 'Szív/Mellkas', 'Gyomor/Has', 'Máj/Epehólyag', 'Vese', 'Hát/Gerinc', 'Derék/Ágyék', 'Csípő/Medence', 'Végtagok'],
+        colors: ['#e9d5ff','#ddd6fe','#d8b4fe','#e9d5ff','#f3e8ff','#d8b4fe','#ddd6fe','#e9d5ff','#e0d5f5','#d4c5f9']
+    },
+    csakra: {
+        title: 'Csakrák',
+        options: ['Gyökér csakra', 'Szakrális csakra', 'Napfonat csakra', 'Szív csakra', 'Torok csakra', '3. szem', 'Korona csakra'],
+        colors: ['#fecaca','#fed7aa','#fde68a','#bbf7d0','#bfdbfe','#ddd6fe','#e9d5ff']
+    },
+    blokkJelleg: {
+        title: 'Blokk Jellege',
+        options: ['Érzelmi blokk', 'Mentális blokk', 'Fizikai blokk', 'Energetikai blokk', 'Spirituális blokk', 'Karmikus blokk', 'Lelki blokk', 'Családi blokk'],
+        colors: ['#fecaca','#fed7aa','#fde68a','#fef3c7','#d9f99d','#bbf7d0','#a7f3d0','#99f6e4']
+    },
+    vedekezes: {
+        title: 'Védekezési Mechanizmus',
+        options: ['Tagadás', 'Elfojtás', 'Projekció', 'Racionalizálás', 'Kompenzáció', 'Elkerülés', 'Agresszió', 'Perfekcionizmus', 'Kontroll', 'Addikció', 'Disszociáció', 'Humor'],
+        colors: ['#fca5a5','#fcd5d5','#fecaca','#fecdd3','#fca5a5','#fed7aa','#fde68a','#fef3c7','#fef9d5','#d9f99d','#bbf7d0','#d9f99d']
+    },
+    szerepek: {
+        title: 'Életszerepek',
+        options: ['Szülő szerepben', 'Partner szerepben', 'Munkavállaló', 'Vezető szerepben', 'Gyerek szerepben', 'Barát szerepben', 'Kolléga szerepben', 'Egyedül/Magánélet', 'Közösségben', 'Kreatív/Alkotó'],
+        colors: ['#fbcfe8','#fecaca','#fde68a','#fef3c7','#d9f99d','#bbf7d0','#99f6e4','#bfdbfe','#c7d2fe','#e9d5ff']
+    },
+    szabotazs: {
+        title: 'Szabotázs Minták',
+        options: ['Halogatás', 'Tökéletesítés', 'Félbehagyás', 'Önkritika', 'Túlvállalás', 'Kontroll igénye', 'Összehasonlítás', 'Küzdelem', 'Gyors feladás', 'Menekülés', 'Nincs szabotázs'],
+        colors: ['#fca5a5','#fcd5d5','#fecaca','#fecdd3','#fca5a5','#fed7aa','#fde68a','#fef3c7','#fef9d5','#d9f99d','#bbf7d0']
+    },
+    haszon: {
+        title: 'Másodlagos Haszon',
+        options: ['Biztonságot ad', 'Identitást ad', 'Figyelmet kapok', 'Szeretetet kapok', 'Nem kell változnom', 'Nem kell felelősség', 'Elkerülöm kudarcot', 'Védelmez mások elől'],
+        colors: ['#fde68a','#fed7aa','#fecaca','#fbcfe8','#f5d0fe','#e9d5ff','#ddd6fe','#d8b4fe']
+    },
+    fogadalom: {
+        title: 'Fogadalmak',
+        options: ['Soha nem leszek mint ő', 'Mindig védeni fogom magam', 'Soha nem engedem meg', 'Mindig erős leszek', 'Soha nem bízom', 'Mindig egyedül csinálom', 'Soha nem fogok sírni', 'Mindig kontroll alatt', 'Örök hűség', 'Családi fogadalom', 'Vallási fogadalom', 'Lélek szerződés', 'Nincs fogadalom'],
+        colors: ['#fca5a5','#fcd5d5','#fecaca','#fecdd3','#fca5a5','#fed7aa','#fde68a','#fef3c7','#fbcfe8','#ddd6fe','#d8b4fe','#a5f3fc','#bbf7d0']
+    },
+    mikroszkop: {
+        title: 'Mikroszkóp - További részletek',
+        options: ['Családi minta', 'Társadalmi kondicionálás', 'Kulturális elvárás', 'Nemi szerep', 'Vallási tanítás', 'Iskolai tapasztalat', 'Média hatás', 'Kortárs nyomás', 'Történelmi trauma', 'Kollektív tudattalan', 'Ősök öröksége', 'Gazdasági körülmények', 'Politikai környezet', 'Etnikai identitás', 'Társadalmi osztály', 'Földrajzi elhelyezkedés', 'Nyelvi befolyás', 'Technológiai hatás', 'Szülői elvárások', 'Testvérrivalizáció', 'Iskolai bullying', 'Munkahelyi kultúra', 'Kapcsolati dinamika', 'Szexuális identitás', 'Testi képzavar', 'Pénzügyi trauma', 'Veszteség/gyász', 'Háborús trauma', 'Migrációs élmény', 'Nincs több részlet'],
+        colors: ['#fecaca','#fed7aa','#fde68a','#fef3c7','#d9f99d','#bbf7d0','#99f6e4','#a5f3fc','#bfdbfe','#c7d2fe','#ddd6fe','#e9d5ff','#f5d0fe','#fce7f3','#fbcfe8','#fed7aa','#fef3c7','#fef9d5','#d9f99d','#bbf7d0','#a7f3d0','#99f6e4','#ccfbf1','#bfdbfe','#d4dfff','#e9d5ff','#f0e5ff','#fce7f3','#fdf2f8','#bbf7d0']
+    },
+    pozitivErzelem: {
+        title: 'Pozitív Érzelmek',
+        options: ['Öröm', 'Béke', 'Szeretet', 'Hála', 'Szabadság', 'Bizalom', 'Bátorság', 'Remény', 'Lelkesedés', 'Megelégedettség', 'Biztonság', 'Könnyedség'],
+        colors: ['#fef3c7','#fef9d5','#fef3c7','#fde68a','#fed7aa','#fcd34d','#fef3c7','#fef9d5','#fef9c3','#d9f99d','#bbf7d0','#d9f99d']
+    },
+    ujHit: {
+        title: 'Új Hiedelmek',
+        options: ['Elég jó vagyok', 'Megérdemlem a jót', 'Szerethető vagyok', 'Erős vagyok', 'Sikereket érek el', 'Biztonságos a siker', 'Boldog lehetek', 'Tehetséges vagyok', 'Változhatok és fejlődhetek', 'Bízom magamban', 'Elfogadom magam', 'Megbocsátok magamnak'],
+        colors: ['#bbf7d0','#a7f3d0','#99f6e4','#99f6e4','#a5f3fc','#bfdbfe','#a5f3fc','#bfdbfe','#c7d2fe','#bfdbfe','#c7d2fe','#ddd6fe']
+    },
+    szinek: {
+        title: 'Gyógyító Színek',
+        options: ['Fehér (tisztaság)', 'Arany (bölcsesség)', 'Ezüst (intuíció)', 'Lila (spiritualitás)', 'Kék (kommunikáció)', 'Zöld (gyógyulás)', 'Rózsaszín (szeretet)', 'Narancssárga (kreativitás)', 'Sárga (öröm)', 'Türkiz (védelem)'],
+        colors: ['#fafafa','#fef3c7','#e5e7eb','#e9d5ff','#bfdbfe','#bbf7d0','#fbcfe8','#fed7aa','#fef3c7','#99f6e4']
+    },
+    kristaly: {
+        title: 'Gyógyító Kristályok',
+        options: ['Hegyikristály', 'Ametiszt', 'Rózsakvarc', 'Citrin', 'Türkiz', 'Labradorit', 'Fekete turmalin', 'Szelenit', 'Karneol', 'Lapis lazuli', 'Malachit', 'Jáspis'],
+        colors: ['#fafafa','#e9d5ff','#fef3c7','#fef9d5','#99f6e4','#c7d2fe','#d1d5db','#fefefe','#fed7aa','#bfdbfe','#bbf7d0','#fecaca']
+    }
+};
+
+function renderStepsGrid() {
+    const grid = document.getElementById('stepsGrid');
+    grid.innerHTML = steps.map(step => {
+        const status = completedSteps.includes(step.id) ? 'completed' : 
+                      (step.id === currentStep ? 'active' : 'pending');
+        return `<div class="step-icon ${status}">${step.icon}</div>`;
+    }).join('');
+}
+
+function updateProgress() {
+    const total = steps.length;
+    const current = currentStep + 1;
+    const percent = Math.round((current / total) * 100);
+    document.getElementById('stepInfo').textContent = `${current} / ${total} lépés`;
+    document.getElementById('percentInfo').textContent = `${percent}%`;
+    document.getElementById('progressBar').style.width = `${percent}%`;
+}
+
+function renderContent() {
+    const step = steps[currentStep];
+    let html = '';
+    
+    if (currentStep === 0) {
+        html = `<h2>🎯 Ráhangolódás</h2>
+            <div class="info-box purple">
+                <strong>Készülj fel a munkára</strong><br>
+                Ülj kényelmesen, lélegezz mélyet, és tartsd kezedben az ingát.
+            </div>
+            <p style="line-height: 1.8; color: #374151; margin-bottom: 24px;">
+                Koncentrálj a feldolgozandó témára. Kérd meg tudatalattid, hogy vezessen.
+            </p>
+            <button class="btn btn-primary" onclick="nextStep()">Tovább →</button>`;
+    } else if (currentStep === 21) {
+        html = `<h2>✨ Oldás</h2>
+            <div class="info-box green" style="color: #065f46;">
+                <strong>Mehet az oldás!</strong><br>
+                Most következik a transzformáció pillanata.
+            </div>
+            <p style="line-height: 1.8; color: #374151; margin-bottom: 24px;">
+                🌟 "Tisztelettel elengedem ezt a blokkot, és hálás vagyok a tanításért."<br><br>
+                🌟 "Megbocsátok magamnak és mindenkinek."<br><br>
+                🌟 "Fény és szeretet áramlik át rajtam."<br><br>
+                Mondd ki hangosan vagy gondolatban 3x.
+            </p>
+            <button class="btn btn-primary" onclick="nextStep()">Oldás megtörtént →</button>`;
+    } else if (currentStep === 27) {
+        html = `<h2>📖 Oldó Szövegek</h2>
+            <p style="color: #6b7280; margin-bottom: 24px;">Válassz kategóriát megerősítő szövegekhez</p>
+            <div class="diagram-grid">
+                <button class="diagram-button">Önbizalom</button>
+                <button class="diagram-button">Megbocsátás</button>
+                <button class="diagram-button">Szeretet</button>
+                <button class="diagram-button">Szabadság</button>
+            </div>
+            <button class="btn btn-primary" style="margin-top: 24px;" onclick="nextStep()">Tovább →</button>`;
+    } else if (currentStep === 28) {
+        const initial = measurements.initial || 'N/A';
+        const final = measurements.final || 'N/A';
+        html = `<h2>🙏 Lezárás és Integráció</h2>
+            <div class="info-box green" style="color: #065f46;">
+                <strong>Gratulálunk a munkádhoz!</strong>
+            </div>
+            <p style="line-height: 1.8; color: #374151; margin-bottom: 24px;">
+                <strong>Kezdeti intenzitás:</strong> ${initial}<br>
+                <strong>Záró intenzitás:</strong> ${final}<br><br>
+                • Igyál egy pohár vizet<br>
+                • Jegyzetelj, ha szeretnél<br>
+                • Figyeld a változásokat a következő napokban
+            </p>
+            <button class="btn btn-secondary" onclick="reset()">Új munkamenet indítása</button>`;
+    } else if (step.diagram) {
+        html = `<h2>${step.icon} ${step.name}</h2>
+            <div class="info-box blue">Használd az ingát a válaszadáshoz</div>
+            <p style="line-height: 1.8; color: #374151; margin-bottom: 24px;">
+                Kérd meg az ingát, hogy mutassa meg a(z) <strong>${step.name.toLowerCase()}</strong> területét.
+            </p>
+            <button class="btn btn-purple" onclick="openDiagram('${step.diagram}')">Diagram megnyitása</button>`;
+    } else {
+        html = `<h2>${step.icon} ${step.name}</h2>
+            <p>Folytatás...</p>
+            <button class="btn btn-primary" onclick="nextStep()">Tovább →</button>`;
+    }
+    
+    document.getElementById('contentCard').innerHTML = html;
+    document.getElementById('navigationCard').style.display = currentStep > 0 ? 'block' : 'none';
+}
+
+function nextStep() {
+    if (currentStep < steps.length - 1) {
+        if (!completedSteps.includes(currentStep)) {
+            completedSteps.push(currentStep);
+        }
+        currentStep++;
+        renderStepsGrid();
+        renderContent();
+        updateProgress();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function prevStep() {
+    if (currentStep > 0) {
+        currentStep--;
+        renderStepsGrid();
+        renderContent();
+        updateProgress();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function openDiagram(type) {
+    const diag = diagrams[type];
+    document.getElementById('diagramTitle').textContent = diag.title;
+    
+    let html = '';
+    
+    // Körkörös diagram létrehozása
+    if (type !== 'igenNem') {
+        html += createCircleDiagram(diag);
+    } else {
+        html += createSimpleDiagram(diag);
+    }
+    
+    // Gombok listája
+    html += '<div class="diagram-grid" style="margin-top: 24px;">';
+    diag.options.forEach((opt, i) => {
+        const escaped = opt.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        html += `<button class="diagram-button" onclick="selectOption('${escaped}')">${opt}</button>`;
+    });
+    html += '</div>';
+    html += '<button class="btn btn-secondary" style="margin-top: 16px;" onclick="skipDiagram()">Kihagyás (nincs válasz)</button>';
+    
+    document.getElementById('diagramContent').innerHTML = html;
+    document.getElementById('diagramModal').classList.add('active');
+}
+
+function createCircleDiagram(diag) {
+    const opts = diag.options;
+    const colors = diag.colors;
+    const angleStep = 360 / opts.length;
+    const centerX = 300, centerY = 300, radius = 250;
+    
+    let paths = '';
+    
+    opts.forEach((opt, i) => {
+        const angle1 = (i * angleStep - 90) * Math.PI / 180;
+        const angle2 = ((i + 1) * angleStep - 90) * Math.PI / 180;
+        const x1 = centerX + radius * Math.cos(angle1);
+        const y1 = centerY + radius * Math.sin(angle1);
+        const x2 = centerX + radius * Math.cos(angle2);
+        const y2 = centerY + radius * Math.sin(angle2);
+        
+        const midAngle = (angle1 + angle2) / 2;
+        const textRadius = radius * 0.7;
+        const textX = centerX + textRadius * Math.cos(midAngle);
+        const textY = centerY + textRadius * Math.sin(midAngle);
+        
+        let rotationAngle = (midAngle * 180 / Math.PI);
+        if (rotationAngle > 90 && rotationAngle < 270) {
+            rotationAngle += 180;
+        }
+        
+        const textLength = opt.length;
+        const fontSize = textLength > 20 ? 8 : (textLength > 15 ? 9 : (textLength > 10 ? 10 : 11));
+        
+        const escaped = opt.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        
+        paths += `<path class="diagram-sector" d="M${centerX},${centerY} L${x1},${y1} A${radius},${radius} 0 0,1 ${x2},${y2} Z" 
+                  fill="${colors[i]}" opacity="0.85" stroke="#fff" 
+                  onclick="selectOption('${escaped}')"/>`;
+        paths += `<text class="diagram-text" x="${textX}" y="${textY}" 
+                  font-size="${fontSize}px" text-anchor="middle" dominant-baseline="middle" 
+                  transform="rotate(${rotationAngle} ${textX} ${textY})">${opt}</text>`;
+    });
+    
+    return `<svg class="diagram-svg" viewBox="0 0 600 600">${paths}</svg>`;
+}
+
+function createSimpleDiagram(diag) {
+    let html = '<div class="diagram-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: 24px;">';
+    diag.options.forEach((opt, i) => {
+        const escaped = opt.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        html += `<button class="diagram-button" style="padding: 24px; font-size: 1.1rem; background: ${diag.colors[i]}; color: #1f2937; border-color: ${diag.colors[i]};" 
+                 onclick="selectOption('${escaped}')">${opt}</button>`;
+    });
+    html += '</div>';
+    return html;
+}
+
+function selectOption(option) {
+    if (currentStep === 2) {
+        measurements.initial = option;
+    } else if (currentStep === 26) {
+        measurements.final = option;
+    }
+    closeDiagram();
+    nextStep();
+}
+
+function skipDiagram() {
+    closeDiagram();
+    nextStep();
+}
+
+function closeDiagram() {
+    document.getElementById('diagramModal').classList.remove('active');
+}
+
+function reset() {
+    currentStep = 0;
+    completedSteps = [];
+    measurements = { initial: null, final: null };
+    renderStepsGrid();
+    renderContent();
+    updateProgress();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Inicializálás
+window.addEventListener('DOMContentLoaded', function() {
+    console.log('App starting...');
+    renderStepsGrid();
+    renderContent();
+    updateProgress();
+    console.log('App loaded successfully!');
+});
+    </script>
+</body>
+</html>
