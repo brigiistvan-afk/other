@@ -1,0 +1,25 @@
+{
+  "name": "IBAR",
+  "short_name": "IBAR",
+  "description": "Ingás Blokkoldó Asszisztens Rendszer",
+  "start_url": "/IBAR/index.html",
+  "scope": "/IBAR/",
+  "display": "standalone",
+  "background_color": "#f5f3ff",
+  "theme_color": "#9333ea",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/IBAR/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/IBAR/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
